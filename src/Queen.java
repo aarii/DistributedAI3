@@ -5,6 +5,7 @@ import jade.core.Agent;
  */
 public class Queen extends Agent{
     public static void main(String[] args) {
+        System.out.println("afaf");
         System.out.print("JEEEdianad");
     }
 }
