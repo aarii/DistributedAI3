@@ -2,6 +2,8 @@ package DistAI3;
 
 import jade.core.AID;
 import jade.core.Agent;
+import jade.core.behaviours.Behaviour;
+import jade.core.behaviours.SequentialBehaviour;
 import jade.core.behaviours.TickerBehaviour;
 import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
@@ -31,6 +33,8 @@ public class Queen extends Agent{
     int arraySize;
     AID prevQueen = new AID();
     boolean onlyOnce = false;
+    boolean onlyOnce1 = false;
+
     @Override
     protected void setup() {
 
@@ -64,7 +68,6 @@ public class Queen extends Agent{
         Object[] args = getArguments();
         DFAgentDescription dfd = new DFAgentDescription();
         ServiceDescription sd;
-        System.out.println("get aid är " + getAID().getName());
         dfd.setName(getAID());
         sd = new ServiceDescription();
         sd.setType((String)args[0]);
@@ -99,7 +102,7 @@ public class Queen extends Agent{
                     if(result.length == 1){
                         for (int i = 0; i < result.length; i++) {
                             nextQueen = result[i].getName();
-                            System.out.println("I am " + getLocalName() + " and my nextQueen is " + nextQueen.getName());
+                            //System.out.println("I am " + getLocalName() + " and my nextQueen is " + nextQueen.getName());
                             removeBehaviour(this);
                         }
                     }
@@ -110,11 +113,14 @@ public class Queen extends Agent{
             }
         });
     }
+
+
     private void placeQueenOnBoard(){
 
-        Object[] args = getArguments();
         String firstQueen = "";
         String lastQueen = "";
+        Object[] args = getArguments();
+
         if(args.length == 3) {
             firstQueen = (String) args[2];
         }
@@ -124,6 +130,11 @@ public class Queen extends Agent{
 
         if (firstQueen.equalsIgnoreCase("first")) {
 
+            for(int i = 0; i<boardToSend.length; i++){
+                for(int j = 0; j < boardToSend.length; j++){
+                    boardToSend[i][j] = myBoard[i][j];
+                }
+            }
             double firstPos = randomPos(arraySize);
             String[] arr = String.valueOf(firstPos).split("\\.");
             int[] intArr = new int[2];
@@ -131,15 +142,27 @@ public class Queen extends Agent{
             intArr[1] = Integer.parseInt(arr[1]);
             int xPos = intArr[0];
             int yPos = intArr[1];
-            System.out.println("Queens first pos is  " + xPos + " , " + yPos);
+            System.out.println(getLocalName()+ "'s chosen pos is  " + xPos + " , " + yPos);
             boardToSend[xPos][yPos] = false;
             setBusySpots(xPos, yPos);
             // removeFromAvailablePos(xPos, yPos);
+            System.out.println("Board to send from " + getLocalName() + " is: ");
             for (int x = 0; x < arraySize; x++) {
                 for (int y = 0; y < arraySize; y++) {
-                    System.out.println("1On xpos: " + x + " and ypos: " + y + " gives us value " + boardToSend[x][y]);
+
+                    if(boardToSend[x][y] == true) {
+
+                        System.out.print(" a ");
+                    }else{
+                        if(xPos == x && yPos == y){
+                            System.out.print(" "+ getLocalName());
+                        }else{
+                        System.out.print(" o ");
+                    }}
                 }
+                System.out.println();
             }
+
 
             addBehaviour(new TickerBehaviour(this, 1000) {
                 @Override
@@ -151,7 +174,6 @@ public class Queen extends Agent{
                             sendToNextQueen.setContentObject(boardToSend);
                             sendToNextQueen.addReceiver(nextQueen);
                             send(sendToNextQueen);
-                            System.out.println("I am " + getLocalName() + " and just sent a message to " + nextQueen);
                             removeBehaviour(this);
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -160,82 +182,143 @@ public class Queen extends Agent{
                 }
             });
 
-          /*  ACLMessage receivedFromNextQueen = blockingReceive();
-            if (receivedFromNextQueen.getPerformative() == ACLMessage.REQUEST) {
-                placeQueenOnBoard();
-            }*/
 
+            addBehaviour(new TickerBehaviour(this, 1000) {
+                @Override
+                protected void onTick() {
+                    ACLMessage receiveFromNextQueen = blockingReceive();
+
+                    if(receiveFromNextQueen.getPerformative() == ACLMessage.REQUEST) {
+                        placeQueenOnBoard();
+                        removeBehaviour(this);
+                    }
+
+                }
+            });
 
 
         }else {
-            System.out.println("I am queen" + getLocalName());
+
+
             ACLMessage receivedFromPreviousQueen = blockingReceive();
+            try {
+                myBoard = (Boolean[][]) receivedFromPreviousQueen.getContentObject();
+            } catch (UnreadableException e) {
+                e.printStackTrace();
+            }
+
+            boardToSend = new Boolean[myBoard.length][myBoard.length];
+            prevQueen = receivedFromPreviousQueen.getSender();
+           // System.out.println("I am queen " + getLocalName()+ " and got a message from " + prevQueen.getLocalName());
+
+            findAvailableSpots();
+
 
             if(receivedFromPreviousQueen.getPerformative() == ACLMessage.INFORM) {
-                try {
-                    myBoard = (Boolean[][]) receivedFromPreviousQueen.getContentObject();
-                } catch (UnreadableException e) {
-                    e.printStackTrace();
+                logic(lastQueen);
+            }
+
+        }
+
+
+    }
+
+
+    private void logic(String lastQueen){
+
+        for(int i = 0; i<boardToSend.length; i++){
+            for(int j = 0; j < boardToSend.length; j++){
+                boardToSend[i][j] = myBoard[i][j];
+            }
+        }
+
+
+        if(!availableSpots.isEmpty()) {
+            String[] arr = String.valueOf(availableSpots.get(0)).split("\\.");
+            int[] intArr = new int[2];
+            intArr[0] = Integer.parseInt(arr[0]);
+            intArr[1] = Integer.parseInt(arr[1]);
+            int xPos = intArr[0];
+            int yPos = intArr[1];
+
+            System.out.print("Available positions for " + getLocalName() + " are: ");
+            for (int i = 0; i< availableSpots.size(); i++){
+                System.out.print(availableSpots.get(i) + " ");
+            }
+            System.out.println();
+            System.out.println(getLocalName() + "'s chosen position is: " + xPos + "," + yPos);
+            boardToSend[xPos][yPos] = false;
+            setBusySpots(xPos, yPos);
+            removeFromAvailablePos(xPos, yPos);
+
+            System.out.println("Board to send from " + getLocalName() + " is: ");
+            for (int x = 0; x < boardToSend.length; x++) {
+                for (int y = 0; y < boardToSend.length; y++) {
+
+                    if(boardToSend[x][y] == true) {
+
+                        System.out.print(" a ");
+                    }else{
+                        if(xPos == x && yPos == y){
+                            System.out.print(" "+ getLocalName());
+                        }else{
+                            System.out.print(" o ");
+                        }}
                 }
-                prevQueen = receivedFromPreviousQueen.getSender();
-                System.out.println("I got a message from " + prevQueen.getLocalName());
+                System.out.println();
+            }
 
-                findAvailableSpots();
-                boardToSend = myBoard;
 
-                if(!availableSpots.isEmpty()) {
-                    String[] arr = String.valueOf(availableSpots.get(0)).split("\\.");
-                    int[] intArr = new int[2];
-                    intArr[0] = Integer.parseInt(arr[0]);
-                    intArr[1] = Integer.parseInt(arr[1]);
-                    int xPos = intArr[0];
-                    int yPos = intArr[1];
-                    System.out.println(getLocalName() + " first pos is  " + xPos + " , " + yPos);
-                    boardToSend[xPos][yPos] = false;
-                    setBusySpots(xPos, yPos);
 
-                    removeFromAvailablePos(xPos, yPos);
+            if(!lastQueen.equalsIgnoreCase("last")){
 
-                    for(int i = 0; i<boardToSend.length; i++){
-                        for(int j = 0; j < boardToSend.length; j++){
-                            System.out.println("On xpos: " + i + " and ypos: " + j + " gives us value " + boardToSend[i][j]);
+                addBehaviour(new TickerBehaviour(this, 1000) {
+                    @Override
+                    protected void onTick() {
+                        if(nextQueen != null) {
+                            ACLMessage sendToNextQueen = new ACLMessage(ACLMessage.INFORM);
+                            try {
+
+                                sendToNextQueen.setContentObject(boardToSend);
+                                sendToNextQueen.addReceiver(nextQueen);
+                                send(sendToNextQueen);
+                               // System.out.println("I am " + getLocalName() + " and just sent a message to " + nextQueen);
+                                removeBehaviour(this);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
                         }
                     }
+                });
 
-                    if(!lastQueen.equalsIgnoreCase("last")){
-                        addBehaviour(new TickerBehaviour(this, 1000) {
-                            @Override
-                            protected void onTick() {
-                                if(nextQueen != null) {
-                                    ACLMessage sendToNextQueen = new ACLMessage(ACLMessage.INFORM);
-                                    try {
+                addBehaviour(new TickerBehaviour(this, 1000) {
+                    @Override
+                    protected void onTick() {
+                        ACLMessage receivedFromNextQueen = blockingReceive();
 
-                                        sendToNextQueen.setContentObject(boardToSend);
-                                        sendToNextQueen.addReceiver(nextQueen);
-                                        send(sendToNextQueen);
-                                        System.out.println("I am " + getLocalName() + " and just sent a message to " + nextQueen);
-                                        removeBehaviour(this);
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }
-                        });}
-                }else{
-                    ACLMessage sendToPrevQueen = new ACLMessage(ACLMessage.REQUEST);
-                    sendToPrevQueen.addReceiver(prevQueen);
-                    send(sendToPrevQueen);
-                    System.out.println("I am " + getLocalName() + " and just sent a message to my previous queen " + prevQueen);
-                }
+
+                        if (receivedFromNextQueen.getPerformative() == ACLMessage.REQUEST) {
+                            System.out.println(receivedFromNextQueen.getSender().getLocalName() + " requested " + getLocalName()  + " to move");
+                            logic(lastQueen);
+                            removeBehaviour(this);
+                        }
+                    }
+                });
+
             }
-                System.out.println("Queen " + getLocalName() + " väntar på en request message");
-              ACLMessage receivedFromNextQueen = blockingReceive();
-            if(receivedFromNextQueen.getPerformative() == ACLMessage.REQUEST) {
 
-                System.out.println("Queen " + getLocalName() + " mottog en request message");
 
-                placeQueenOnBoard();
-            }
+        }else{
+            ACLMessage sendToPrevQueen = new ACLMessage(ACLMessage.REQUEST);
+
+            sendToPrevQueen.setPerformative(ACLMessage.REQUEST);
+
+
+            sendToPrevQueen.addReceiver(prevQueen);
+            send(sendToPrevQueen);
+            placeQueenOnBoard();
+           // System.out.println("I am " + getLocalName() + " and just sent a message to " + prevQueen);
+
         }
     }
 
@@ -253,9 +336,7 @@ public class Queen extends Agent{
                 availableSpots.remove(i);
             }
         }
-        for (int i = 0; i< availableSpots.size(); i++){
-            System.out.println("Available positions are " + availableSpots.get(i));
-        }
+
     }
     private void findAvailableSpots(){
         for(int x = 0; x<myBoard.length; x++){
@@ -279,8 +360,6 @@ public class Queen extends Agent{
         }
 
     }
-
-
     private  void checkRow(int xPos, int x, int y) {
 
         if(xPos == x){
@@ -335,6 +414,8 @@ public class Queen extends Agent{
         double result = x + y;
         return  result;
     }
+
+
 
 
 }
